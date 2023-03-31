@@ -1,5 +1,6 @@
 let net = require("net"),
   kadPTPpacket = require("./kadPTPmessage"),
+  ITPpacket = require("./ITPResponse"),
   singleton = require("./Singleton");
 
 const path = require('path');
@@ -7,6 +8,10 @@ const fs = require('fs');
 
 let myReceivingPort = null;
 let mySendingPort = null;
+
+var nickNames = {},
+  clientIP = {},
+  startTimestamp = {};
 
 let peersList = [];
 
@@ -25,6 +30,23 @@ module.exports = {
     // populate the list of local keys array with the IDs of images in this folder
     populateLocalKeysList();
     communicate(clientSocket, clientName, clientDHTtable)
+  },
+  handleImageRequest: function (sock) {
+    assignClientName(sock, nickNames);
+    console.log(
+      "\n" +
+        nickNames[sock.id] +
+        " is connected at timestamp: " +
+        startTimestamp[sock.id]
+    );
+
+    sock.on("data", function (requestPacket) {
+      handleImageRequests(requestPacket, sock); //read client requests and respond
+    });
+
+    sock.on("close", function () {
+      handleClientLeaving(sock);
+    });
   }
 };
 
@@ -178,6 +200,83 @@ function communicate(clientSocket, clientName, clientDHTtable) {
     // disconnected from server
     sendHello(clientDHTtable)
   })
+}
+
+function handleImageRequests(data, sock) {
+  console.log("\nITP packet received from: " + sock.remoteAddress + ":" + sock.remotePort);
+  printPacketBit(data);
+
+  let version = parseBitPacket(data, 0, 4);
+  let requestType = parseBitPacket(data, 24, 8);
+  let requestName = {
+    0: "Query",
+    1: "Found",
+    2: "Not found",
+    3: "Busy",
+  };
+  let imageExtension = {
+    1: "BMP",
+    2: "JPEG",
+    3: "GIF",
+    4: "PNG",
+    5: "TIFF",
+    15: "RAW",
+  };
+  let timeStamp = parseBitPacket(data, 32, 32);
+  let imageType = parseBitPacket(data, 64, 4);
+  let imageTypeName = imageExtension[imageType];
+  let imageNameSize = parseBitPacket(data, 68, 28);
+  let imageName = bytesToString(data.slice(12, 13 + imageNameSize));
+
+  let imageFullName = imageName + "." + imageTypeName;
+
+  console.log(
+    "\n" +
+      nickNames[sock.id] +
+    " requests:" +
+    "\n    --ITP version: " +
+    version +
+    "\n    --Timestamp: " +
+    timeStamp +
+    "\n    --Request type: " +
+    requestName[requestType] +
+    "\n    --Image file extension(s): " +
+    imageTypeName +
+    "\n    --Image file name: " +
+    imageName +
+    "\n"
+  );
+
+  let found = false;
+  // check in this peer's list of keys for the image
+  localKeysList.forEach((key) => {
+    if (key.imageName == imageFullName) {
+      found = true;
+    }
+  });
+
+  // if the image was found in this peer, form an ITPResponse packet with the image
+  if (found) {
+    let imageData = fs.readFileSync(imageFullName);
+
+    ITPpacket.init(
+      version,
+      1, // response type of "Found to Client"
+      singleton.getSequenceNumber(), // sequence number
+      singleton.getTimestamp(), // timestamp
+      imageData, // image data
+    );
+
+    sock.write(ITPpacket.getBytePacket());
+    sock.end();
+  }
+  // search the KAD peer network 
+  else {
+    console.log("Hi");
+
+  }
+
+
 }
 
 function updateDHTtable(DHTtable, list) {
@@ -354,13 +453,21 @@ function parseBitPacket(packet, offset, length) {
   return number;
 }
 
+function bytesToString(array) {
+  var result = "";
+  for (var i = 0; i < array.length; ++i) {
+    result += String.fromCharCode(array[i]);
+  }
+  return result;
+}
+
 
 // function to get the name of a file in the folder 
 function populateLocalKeysList() {
   const directoryPath = path.join(__dirname);
 
   let imagesInDirectory = [];
-  
+
   //passsing directoryPath and callback function
   fs.readdir(directoryPath, function (err, files) {
     //handling error
@@ -370,15 +477,33 @@ function populateLocalKeysList() {
     //listing all files using forEach
     files.forEach(function (file) {
       // Checking to see if the file has the extension of an image
-      if(file.includes('.gif') || file.includes('.jpeg') || file.includes('.jpg')){
+      if (file.includes('.gif') || file.includes('.jpeg') || file.includes('.jpg')) {
         imagesInDirectory.push(file);
       }
     });
 
     imagesInDirectory.forEach((fileName) => {
-      localKeysList.push(singleton.getKeyID(fileName));
+      let temp = {
+        imageName: fileName,
+        imageID: singleton.getKeyID(fileName)
+      };
+      localKeysList.push(temp);
     })
-    
+
   });
+}
+
+// Prints the entire packet in bits format
+function printPacketBit(packet) {
+  var bitString = "";
+
+  for (var i = 0; i < packet.length; i++) {
+    // To add leading zeros
+    var b = "00000000" + packet[i].toString(2);
+    // To print 4 bytes per line
+    if (i > 0 && i % 4 == 0) bitString += "\n";
+    bitString += " " + b.substr(b.length - 8);
+  }
+  console.log(bitString);
 }
 

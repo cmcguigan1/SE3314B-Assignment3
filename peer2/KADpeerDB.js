@@ -12,8 +12,11 @@ let myName = path[path.length - 1];
 
 let ifaces = os.networkInterfaces();
 let HOST = "";
-let PORT = singleton.getPort(); //get random port number
-console.log(PORT);
+
+// get a random port > 3000 and < 5000 for the image socket
+let imageSocketPort = singleton.getImageSocketPort();
+// fixed value for the peer socket
+let peerSocketPort = 2001;
 
 // get the loaclhost ip address
 Object.keys(ifaces).forEach(function (ifname) {
@@ -26,7 +29,7 @@ Object.keys(ifaces).forEach(function (ifname) {
 
 
 
-let serverID = singleton.getPeerID(HOST, PORT);
+let KADserverID = singleton.getPeerID(HOST, peerSocketPort);
 
 // peer format
 // {
@@ -59,16 +62,14 @@ if (process.argv.length > 2) {
   let knownPORT = hostserverIPandPort[1];
 
   // connect to the known peer address (any peer act as a server)
-  let clientSocket = new net.Socket();
-  let port = singleton.getPort();
-  console.log(port);
-  clientSocket.connect({ port: knownPORT, host: knownHOST, localPort: port }, () => {
+  let peerSocket = new net.Socket();
+  peerSocket.connect({ port: knownPORT, host: knownHOST, localPort: peerSocketPort }, () => {
     // initialize client DHT table
-    let clientID = singleton.getPeerID(clientSocket.localAddress, port)
+    let clientID = singleton.getPeerID(peerSocket.localAddress, peerSocketPort)
     let clientPeer = {
       peerName: myName, // client name
-      peerIP: clientSocket.localAddress,
-      peerPort: port,
+      peerIP: peerSocket.localAddress,
+      peerPort: peerSocketPort,
       peerID: clientID
     };
 
@@ -77,24 +78,31 @@ if (process.argv.length > 2) {
       table: []
     }
 
-    handler.handleCommunications(clientSocket, myName /*client name*/, clientDHTtable);
+    handler.handleCommunications(peerSocket, myName /*client name*/, clientDHTtable);
   });
 
 } else {
   // call as node peer (no arguments)
   // run as a server
-  let serverSocket = net.createServer();
-  serverSocket.listen(PORT, HOST);
+  let KADServerSocket = net.createServer();
+  let imageServerSocket = net.createServer();
+
+  KADServerSocket.listen(peerSocketPort, HOST);
   console.log(
-    "This peer address is " + HOST + ":" + PORT + " located at " + myName /*server name*/ + " [" + serverID + "]"
+    "This peer address is " + HOST + ":" + peerSocketPort + " located at " + myName /*server name*/ + " [" + KADserverID + "]"
+  );
+
+  imageServerSocket.listen(imageSocketPort, HOST);
+  console.log(
+    "This image server is located at: " + HOST + ":" + imageSocketPort
   );
 
   // initialize server DHT table
   let serverPeer = {
     peerName: myName,
     peerIP: HOST,
-    peerPort: PORT,
-    peerID: serverID
+    peerPort: peerSocketPort,
+    peerID: KADserverID
   };
 
   let serverDHTtable = {
@@ -102,9 +110,14 @@ if (process.argv.length > 2) {
     table: []
   }
 
-  serverSocket.on("connection", function (sock) {
+  KADServerSocket.on("connection", function (sock) {
     // received connection request
     handler.handleClientJoining(sock, serverDHTtable);
+  });
+
+  imageServerSocket.on("connection", function (sock) {
+    // received connection request
+    handler.handleImageRequest(sock);
   });
 
 }

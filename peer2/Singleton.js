@@ -33,11 +33,10 @@ module.exports = {
     },
 
     //--------------------------
-    //getrandom port > 3000
+    //get random port > 3000 and < 5000
     //--------------------------
-    getPort: function() {
-        var weight = Math.floor(Math.random()*1000)+1;
-        return  Math.floor( Math.random()*weight) + 3001;
+    getImageSocketPort: function() {
+        return Math.floor(Math.random() * (5000 - 3000 + 1)) + 3000;
     },
 
     //--------------------------
