@@ -1,6 +1,7 @@
 let net = require("net"),
   kadPTPpacket = require("./kadPTPmessage"),
   ITPpacket = require("./ITPResponse"),
+  KADSeachPacket = require('./kadPTPSeachRequestPacket'),
   singleton = require("./Singleton");
 
 const path = require('path');
@@ -35,9 +36,9 @@ module.exports = {
     assignClientName(sock, nickNames);
     console.log(
       "\n" +
-        nickNames[sock.id] +
-        " is connected at timestamp: " +
-        startTimestamp[sock.id]
+      nickNames[sock.id] +
+      " is connected at timestamp: " +
+      startTimestamp[sock.id]
     );
 
     sock.on("data", function (requestPacket) {
@@ -232,7 +233,7 @@ function handleImageRequests(data, sock) {
 
   console.log(
     "\n" +
-      nickNames[sock.id] +
+    nickNames[sock.id] +
     " requests:" +
     "\n    --ITP version: " +
     version +
@@ -255,10 +256,10 @@ function handleImageRequests(data, sock) {
     }
   });
 
+  let imageData = fs.readFileSync(imageFullName);
+
   // if the image was found in this peer, form an ITPResponse packet with the image
   if (found) {
-    let imageData = fs.readFileSync(imageFullName);
-
     ITPpacket.init(
       version,
       1, // response type of "Found to Client"
@@ -267,13 +268,36 @@ function handleImageRequests(data, sock) {
       imageData, // image data
     );
 
+    // open a socket connection to the port and ip specified in the packet and send the image
+    //let receivingSocket = new net.Socket;
+    //receivingSocket.connect(port: )
     sock.write(ITPpacket.getBytePacket());
     sock.end();
   }
   // search the KAD peer network 
   else {
-    console.log("Hi");
-
+    // initialize a KAD search packet for the image
+    KADSeachPacket.init(
+      version,
+      3,
+      imageType,
+      imageData
+    );
+    let closestPeer = sendSearchToClosestPeer(singleton.getKeyID(imageFullName), );
+    let sendToPeerSock = new net.Socket;
+    sendToPeerSock.connect({
+      port: closestPeer.peerPort,
+      host: closestPeer.peerIP,
+      localPort: singleton.getPeerSocket()
+      },
+      () => {
+        sendToPeerSock.write(KADSeachPacket.getPacket());
+        setTimeout(() => {
+          sendToPeerSock.end();
+          sendToPeerSock.destroy();
+        }, 500)
+      }
+    );
   }
 
 
@@ -507,3 +531,23 @@ function printPacketBit(packet) {
   console.log(bitString);
 }
 
+function sendSearchToClosestPeer(keyID, DHTtable) {
+  let keyIDBinary = singleton.Hex2Bin(keyID);
+  let thisPeerIDBinary = singleton.Hex2Bin(singleton.getPeerID(singleton.getIP(), singleton.getPeerSocket()));
+  // Count how many bits match
+  let i = 0;
+  for (i = 0; i < thisPeerIDBinary.length; i++) {
+    if (thisPeerIDBinary[i] != keyIDBinary[i])
+      break;
+  }
+
+  DHTtable.forEach((peer) => {
+    // return the peer with the same longest common prefix as the keyID with this peer
+    if (peer.prefix == i) {
+      return peer;
+    }
+  });
+
+  // if no peer is found then return null
+  return null;
+}
