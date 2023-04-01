@@ -10,6 +10,8 @@ const fs = require('fs');
 let myReceivingPort = null;
 let mySendingPort = null;
 
+let clientRequestingImage = null;
+
 var nickNames = {},
   clientIP = {},
   startTimestamp = {};
@@ -274,103 +276,117 @@ function communicate(clientSocket, clientName) {
 }
 
 function handleImageRequests(data, sock) {
-  console.log("\nITP packet received from: " + sock.remoteAddress + ":" + sock.remotePort);
-  printPacketBit(data);
-
-  let version = parseBitPacket(data, 0, 4);
-  let requestType = parseBitPacket(data, 24, 8);
-  let requestName = {
-    0: "Query",
-    1: "Found",
-    2: "Not found",
-    3: "Busy",
-  };
-  let imageExtension = {
-    1: "BMP",
-    2: "JPEG",
-    3: "GIF",
-    4: "PNG",
-    5: "TIFF",
-    15: "RAW",
-  };
-  let timeStamp = parseBitPacket(data, 32, 32);
-  let imageType = parseBitPacket(data, 64, 4);
-  let imageTypeName = imageExtension[imageType];
-  let imageNameSize = parseBitPacket(data, 68, 28);
-  let imageName = bytesToString(data.slice(12, 13 + imageNameSize));
-
-  let imageFullName = imageName + "." + imageTypeName;
-
-  console.log(
-    "\n" +
-    nickNames[sock.id] +
-    " requests:" +
-    "\n    --ITP version: " +
-    version +
-    "\n    --Timestamp: " +
-    timeStamp +
-    "\n    --Request type: " +
-    requestName[requestType] +
-    "\n    --Image file extension(s): " +
-    imageTypeName +
-    "\n    --Image file name: " +
-    imageName +
-    "\n"
-  );
-
-  let found = false;
-  // check in this peer's list of keys for the image
-  localKeysList.forEach((key) => {
-    if (key.imageName == imageFullName) {
-      found = true;
-    }
-  });
-
-  let imageData = fs.readFileSync(imageFullName);
-
-  // if the image was found in this peer, form an ITPResponse packet with the image
-  if (found) {
-    ITPpacket.init(
-      version,
-      1, // response type of "Found to Client"
-      singleton.getSequenceNumber(), // sequence number
-      singleton.getTimestamp(), // timestamp
-      imageData, // image data
-    );
-
-    // open a socket connection to the port and ip specified in the packet and send the image
-    //let receivingSocket = new net.Socket;
-    //receivingSocket.connect(port: )
-    sock.write(ITPpacket.getBytePacket());
-    sock.end();
+  // check to see if its an ITPRequest or an ITPResponse packet
+  let potentialResponseType = parseBitPacket(data, 4, 8);
+  // since the ITPRequest bits 4 to 12 would be filled with 0s (Reserved), if the value != 0, its a Response packet
+  if (potentialResponseType != 0) {
+    // Edit the response type, timestamp and sequence number fields of the ITPResponse packet received 
+    storeBitPacket(data, 1, 4, 8); // Changing the reponse type from "Found to Originator" to "Found to Client"
+    storeBitPacket(data, singleton.getSequenceNumber(), 12, 20);
+    storeBitPacket(data, singleton.getTimestamp(), 32, 32);
+    
+    // write back to the client that requested the image
+    clientRequestingImage.write(data);
+    clientRequestingImage.end();
   }
-  // search the KAD peer network 
+  // Otherwise its an ITPRequest packet for an image
   else {
-    // initialize a KAD search packet for the image
-    KADSeachPacket.init(
-      version,
-      3,
-      imageType,
-      imageData
+    console.log("\nITP packet received from: " + sock.remoteAddress + ":" + sock.remotePort);
+    printPacketBit(data);
+
+    let version = parseBitPacket(data, 0, 4);
+    let requestType = parseBitPacket(data, 24, 8);
+    let requestName = {
+      0: "Query",
+      1: "Found to Client",
+      4: "Found to Originator",
+    };
+    let imageExtension = {
+      1: "BMP",
+      2: "JPEG",
+      3: "GIF",
+      4: "PNG",
+      5: "TIFF",
+      15: "RAW",
+    };
+    let timeStamp = parseBitPacket(data, 32, 32);
+    let imageType = parseBitPacket(data, 64, 4);
+    let imageTypeName = imageExtension[imageType];
+    let imageNameSize = parseBitPacket(data, 68, 28);
+    let imageName = bytesToString(data.slice(12, 13 + imageNameSize));
+
+    let imageFullName = imageName + "." + imageTypeName;
+
+    console.log(
+      "\n" +
+      nickNames[sock.id] +
+      " requests:" +
+      "\n    --ITP version: " +
+      version +
+      "\n    --Timestamp: " +
+      timeStamp +
+      "\n    --Request type: " +
+      requestName[requestType] +
+      "\n    --Image file extension(s): " +
+      imageTypeName +
+      "\n    --Image file name: " +
+      imageName +
+      "\n"
     );
-    let closestPeer = sendSearchToClosestPeer(singleton.getKeyID(imageFullName), singleton.getDHTtable());
-    let sendToPeerSock = new net.Socket;
-    sendToPeerSock.connect({
-      port: closestPeer.peerPort,
-      host: closestPeer.peerIP,
-      localPort: singleton.getPeerSocket()
-    },
-      () => {
-        sendToPeerSock.write(KADSeachPacket.getPacket());
-        setTimeout(() => {
-          sendToPeerSock.end();
-          sendToPeerSock.destroy();
-        }, 500)
+
+    let found = false;
+    // check in this peer's list of keys for the image
+    localKeysList.forEach((key) => {
+      if (key.imageName == imageFullName) {
+        found = true;
       }
-    );
+    });
+
+    let imageData = fs.readFileSync(imageFullName);
+
+    // if the image was found in this peer, form an ITPResponse packet with the image
+    if (found) {
+      ITPpacket.init(
+        version,
+        1, // response type of "Found to Client"
+        singleton.getSequenceNumber(), // sequence number
+        singleton.getTimestamp(), // timestamp
+        imageData, // image data
+      );
+
+      // open a socket connection to the port and ip specified in the packet and send the image
+      sock.write(ITPpacket.getBytePacket());
+      sock.end();
+    }
+    // search the KAD peer network 
+    else {
+      // store the socket in a reference so we can use it when the reponse packet is returned by the peer that has the image
+      clientRequestingImage = sock;
+
+      // initialize a KAD search packet for the image
+      KADSeachPacket.init(
+        version,
+        3,
+        imageType,
+        imageData
+      );
+      let closestPeer = sendSearchToClosestPeer(singleton.getKeyID(imageFullName), singleton.getDHTtable());
+      let sendToPeerSock = new net.Socket;
+      sendToPeerSock.connect({
+        port: closestPeer.peerPort,
+        host: closestPeer.peerIP,
+        localPort: singleton.getPeerSocket()
+      },
+        () => {
+          sendToPeerSock.write(KADSeachPacket.getBytePacket());
+          setTimeout(() => {
+            sendToPeerSock.end();
+            sendToPeerSock.destroy();
+          }, 500)
+        }
+      );
+    }
   }
-
-
 }
 
 function updateDHTtable(list) {
@@ -667,4 +683,23 @@ function parseKADSeachRequestMessage(message) {
   kadPacket.imageFullName = `${imageName}.${imageExtension[kadPacket.imageType]}`;
 
   return kadPacket;
+}
+
+
+// Store integer value into the packet bit stream
+function storeBitPacket(packet, value, offset, length) {
+  // let us get the actual byte position of the offset
+  let lastBitPosition = offset + length - 1;
+  let number = value.toString(2);
+  let j = number.length - 1;
+  for (var i = 0; i < number.length; i++) {
+    let bytePosition = Math.floor(lastBitPosition / 8);
+    let bitPosition = 7 - (lastBitPosition % 8);
+    if (number.charAt(j--) == "0") {
+      packet[bytePosition] &= ~(1 << bitPosition);
+    } else {
+      packet[bytePosition] |= 1 << bitPosition;
+    }
+    lastBitPosition--;
+  }
 }
