@@ -1,5 +1,7 @@
 let net = require("net"),
   kadPTPpacket = require("./kadPTPmessage"),
+  ITPpacket = require("./ITPResponse"),
+  KADSeachPacket = require('./kadPTPSeachRequestPacket'),
   singleton = require("./Singleton");
 
 const path = require('path');
@@ -8,32 +10,49 @@ const fs = require('fs');
 let myReceivingPort = null;
 let mySendingPort = null;
 
+var nickNames = {},
+  clientIP = {},
+  startTimestamp = {};
+
 let peersList = [];
 
 // list to record the IDs of its local images
 let localKeysList = [];
 
 module.exports = {
-  handleClientJoining: function (sock, serverDHTtable) {
+  handleClientJoining: function (sock) {
+    console.log("hi");
     // populate the list of local keys array with the IDs of images in this folder
     populateLocalKeysList();
     // accept anyways in this assignment
-    handleClient(sock, serverDHTtable);
+    handleClient(sock);
 
   },
-  handleCommunications: function (clientSocket, clientName, clientDHTtable) {
+  handleCommunications: function (clientSocket, clientName) {
     // populate the list of local keys array with the IDs of images in this folder
     populateLocalKeysList();
-    communicate(clientSocket, clientName, clientDHTtable)
+    communicate(clientSocket, clientName);
   },
   handleImageRequest: function (sock) {
+    assignClientName(sock, nickNames);
+    console.log(
+      "\n" +
+      nickNames[sock.id] +
+      " is connected at timestamp: " +
+      startTimestamp[sock.id]
+    );
+
     sock.on("data", function (requestPacket) {
       handleImageRequests(requestPacket, sock); //read client requests and respond
+    });
+
+    sock.on("close", function () {
+      handleClientLeaving(sock);
     });
   }
 };
 
-function handleClient(sock, serverDHTtable) {
+function handleClient(sock) {
   let kadPacket = null;
   let joiningPeerAddress = sock.remoteAddress + ":" + sock.remotePort;
 
@@ -74,34 +93,34 @@ function handleClient(sock, serverDHTtable) {
         }
 
         // add the sender into the table only if it is not exist or set the name of the exisiting one
-        let exist = serverDHTtable.table.find(e => e.node.peerPort == joiningPeer.peerPort);
+        let exist = singleton.getDHTtable().table.find(e => e.node.peerPort == joiningPeer.peerPort);
         if (exist) {
           exist.node.peerName = joiningPeer.peerName;
         } else {
-          pushBucket(serverDHTtable, joiningPeer);
+          pushBucket(singleton.getDHTtable(), joiningPeer);
         }
 
         // Now update the DHT table
-        updateDHTtable(serverDHTtable, kadPacket.peersList);
+        updateDHTtable(kadPacket.peersList);
       }
     } else {
       // This was a bootstrap request
       console.log("Connected from peer " + joiningPeerAddress + "\n");
       // add the requester info into server DHT table
-      pushBucket(serverDHTtable, joiningPeer);
+      pushBucket(singleton.getDHTtable(), joiningPeer);
     }
   });
 
   if (kadPacket == null) {
     // This is a bootstrap request
     // send acknowledgment to the client
-    kadPTPpacket.init(7, 1, serverDHTtable);
+    kadPTPpacket.init(7, 1, singleton.getDHTtable());
     sock.write(kadPTPpacket.getPacket());
     sock.end();
   }
 }
 
-function communicate(clientSocket, clientName, clientDHTtable) {
+function communicate(clientSocket, clientName) {
   let senderPeerID = singleton.getPeerID(clientSocket.remoteAddress, clientSocket.remotePort)
 
   clientSocket.on('data', (message) => {
@@ -144,7 +163,7 @@ function communicate(clientSocket, clientName, clientDHTtable) {
       // Wait for other peers to connect
       serverPeer.on("connection", function (sock) {
         // again we will accept all connections in this assignment
-        handleClient(sock, clientDHTtable);
+        handleClient(sock);
       });
 
       console.log("Received Welcome message from " + senderPeerName) + "\n";
@@ -164,14 +183,14 @@ function communicate(clientSocket, clientName, clientDHTtable) {
       }
 
       // add the bootstrap node into the DHT table but only if it is not exist already
-      let exist = clientDHTtable.table.find(e => e.node.peerPort == clientSocket.remotePort);
+      let exist = singleton.getDHTtable().table.find(e => e.node.peerPort == clientSocket.remotePort);
       if (!exist) {
-        pushBucket(clientDHTtable, senderPeer);
+        pushBucket(singleton.getDHTtable(), senderPeer);
       } else {
         console.log(senderPeer.peerPort + " is exist already")
       }
 
-      updateDHTtable(clientDHTtable, kadPacket.peersList)
+      updateDHTtable(kadPacket.peersList)
 
     } else {
       // Later we will consider other message types.
@@ -181,12 +200,12 @@ function communicate(clientSocket, clientName, clientDHTtable) {
 
   clientSocket.on("end", () => {
     // disconnected from server
-    sendHello(clientDHTtable)
+    sendHello(singleton.getDHTtable())
   })
 }
 
 function handleImageRequests(data, sock) {
-  console.log("\nITP packet received:");
+  console.log("\nITP packet received from: " + sock.remoteAddress + ":" + sock.remotePort);
   printPacketBit(data);
 
   let version = parseBitPacket(data, 0, 4);
@@ -214,6 +233,8 @@ function handleImageRequests(data, sock) {
   let imageFullName = imageName + "." + imageTypeName;
 
   console.log(
+    "\n" +
+    nickNames[sock.id] +
     " requests:" +
     "\n    --ITP version: " +
     version +
@@ -236,10 +257,10 @@ function handleImageRequests(data, sock) {
     }
   });
 
+  let imageData = fs.readFileSync(imageFullName);
+
   // if the image was found in this peer, form an ITPResponse packet with the image
   if (found) {
-    let imageData = fs.readFileSync(imageFullName);
-
     ITPpacket.init(
       version,
       1, // response type of "Found to Client"
@@ -248,23 +269,47 @@ function handleImageRequests(data, sock) {
       imageData, // image data
     );
 
+    // open a socket connection to the port and ip specified in the packet and send the image
+    //let receivingSocket = new net.Socket;
+    //receivingSocket.connect(port: )
     sock.write(ITPpacket.getBytePacket());
     sock.end();
   }
   // search the KAD peer network 
   else {
-    console.log("Hi");
-
+    // initialize a KAD search packet for the image
+    KADSeachPacket.init(
+      version,
+      3,
+      imageType,
+      imageData
+    );
+    let closestPeer = sendSearchToClosestPeer(singleton.getKeyID(imageFullName), );
+    let sendToPeerSock = new net.Socket;
+    sendToPeerSock.connect({
+      port: closestPeer.peerPort,
+      host: closestPeer.peerIP,
+      localPort: singleton.getPeerSocket()
+      },
+      () => {
+        sendToPeerSock.write(KADSeachPacket.getPacket());
+        setTimeout(() => {
+          sendToPeerSock.end();
+          sendToPeerSock.destroy();
+        }, 500)
+      }
+    );
   }
 
 
 }
 
-function updateDHTtable(DHTtable, list) {
+function updateDHTtable(list) {
   // Refresh the local k-buckets using the transmitted list of peers. 
 
-  refreshBucket(DHTtable, list)
+  refreshBucket(singleton.getDHTtable(), list)
   console.log("Refresh k-Bucket operation is performed.\n");
+  let DHTtable = singleton.getDHTtable();
 
   if (DHTtable.table.length > 0) {
     let output = "My DHT: ";
@@ -371,6 +416,9 @@ function pushBucket(T, P) {
       T.table.push(k_bucket);
     }
   }
+
+  // set the singleton's DHT table to "save" the edits we just made
+  singleton.setDHTtable(T);
 
 }
 // The method scans the k-buckets of T and send hello message packet to every peer P in T, one at a time. 
@@ -486,4 +534,25 @@ function printPacketBit(packet) {
     bitString += " " + b.substr(b.length - 8);
   }
   console.log(bitString);
+}
+
+function sendSearchToClosestPeer(keyID, DHTtable) {
+  let keyIDBinary = singleton.Hex2Bin(keyID);
+  let thisPeerIDBinary = singleton.Hex2Bin(singleton.getPeerID(singleton.getIP(), singleton.getPeerSocket()));
+  // Count how many bits match
+  let i = 0;
+  for (i = 0; i < thisPeerIDBinary.length; i++) {
+    if (thisPeerIDBinary[i] != keyIDBinary[i])
+      break;
+  }
+
+  DHTtable.forEach((peer) => {
+    // return the peer with the same longest common prefix as the keyID with this peer
+    if (peer.prefix == i) {
+      return peer;
+    }
+  });
+
+  // if no peer is found then return null
+  return null;
 }

@@ -2,6 +2,11 @@
 let sequenceNumber;
 let timerInterval = 10;
 let timer;
+let imageSocketNumber;
+let peerSocketNumber;
+let IP;
+let senderName;
+let DHTtable;
 
 function timerRun() {
     timer ++;
@@ -36,7 +41,9 @@ module.exports = {
     //get random port > 3000 and < 5000
     //--------------------------
     getImageSocketPort: function() {
-        return Math.floor(Math.random() * (5000 - 3000 + 1)) + 3000;
+        let socket = Math.floor(Math.random() * (5000 - 3000 + 1)) + 3000;
+        this.setImageSocket(socket);
+        return socket;
     },
 
     //--------------------------
@@ -84,7 +91,37 @@ module.exports = {
                 ans += "1";
         }
         return ans;
-    }
+    },
 
+    setImageSocket: function (port){
+        imageSocketNumber = port;
+    },
+    setPeerSocket: function (port){
+        peerSocketNumber = port;
+    },
+    setIP: function (ip){
+        IP = ip;
+    },
+    setSenderName: function (sender){
+        senderName = sender;
+    },
+    setDHTtable: function(table){
+        DHTtable = table;
+    },
 
+    getImageSocket: function (){
+        return imageSocketNumber;
+    },
+    getPeerSocket: function (){
+        return peerSocketNumber;
+    },
+    getIP: function (){
+        return IP;
+    },
+    getSenderName: function (){
+        return senderName;
+    },
+    getDHTtable: function (){
+        return DHTtable;
+    },
 };

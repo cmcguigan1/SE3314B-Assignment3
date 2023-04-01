@@ -9,6 +9,7 @@ singleton.init();
 // get current folder name
 let path = __dirname.split("\\");
 let myName = path[path.length - 1];
+singleton.setSenderName(myName);
 
 let ifaces = os.networkInterfaces();
 let HOST = "";
@@ -16,7 +17,8 @@ let HOST = "";
 // get a random port > 3000 and < 5000 for the image socket
 let imageSocketPort = singleton.getImageSocketPort();
 // fixed value for the peer socket
-let peerSocketPort = 2001;
+let peerSocketPort = 2055;
+singleton.setPeerSocket(peerSocketPort);
 
 // get the loaclhost ip address
 Object.keys(ifaces).forEach(function (ifname) {
@@ -27,6 +29,7 @@ Object.keys(ifaces).forEach(function (ifname) {
   });
 });
 
+singleton.setIP(HOST);
 
 
 let KADserverID = singleton.getPeerID(HOST, peerSocketPort);
@@ -78,8 +81,22 @@ if (process.argv.length > 2) {
       table: []
     }
 
-    handler.handleCommunications(peerSocket, myName /*client name*/, clientDHTtable);
+    singleton.setDHTtable(clientDHTtable);
+
+    handler.handleCommunications(peerSocket, myName /*client name*/);
   });
+
+  // starting the image socket server
+  let imageServerSocket = net.createServer();
+  imageServerSocket.listen(imageSocketPort, HOST);
+  console.log(
+    "ImageDB server is started at timestamp " + singleton.getTimestamp() + " and is listening on " + HOST + ":" + imageSocketPort
+  );
+  imageServerSocket.on("connection", function (sock) {
+    // received connection request
+    handler.handleImageRequest(sock);
+  });
+
 
 } else {
   // call as node peer (no arguments)
@@ -87,14 +104,14 @@ if (process.argv.length > 2) {
   let KADServerSocket = net.createServer();
   let imageServerSocket = net.createServer();
 
+  imageServerSocket.listen(imageSocketPort, HOST);
+  console.log(
+    "ImageDB server is started at timestamp " + singleton.getTimestamp() + " and is listening on " + HOST + ":" + imageSocketPort
+  );
+
   KADServerSocket.listen(peerSocketPort, HOST);
   console.log(
     "This peer address is " + HOST + ":" + peerSocketPort + " located at " + myName /*server name*/ + " [" + KADserverID + "]"
-  );
-
-  imageServerSocket.listen(imageSocketPort, HOST);
-  console.log(
-    "This image server is located at: " + HOST + ":" + imageSocketPort
   );
 
   // initialize server DHT table
@@ -110,14 +127,16 @@ if (process.argv.length > 2) {
     table: []
   }
 
+  singleton.setDHTtable(serverDHTtable);
+
   KADServerSocket.on("connection", function (sock) {
+    console.log("AH");
     // received connection request
-    handler.handleClientJoining(sock, serverDHTtable);
+    handler.handleClientJoining(sock);
   });
 
   imageServerSocket.on("connection", function (sock) {
     // received connection request
     handler.handleImageRequest(sock);
   });
-
 }

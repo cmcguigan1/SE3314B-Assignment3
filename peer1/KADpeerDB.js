@@ -81,7 +81,9 @@ if (process.argv.length > 2) {
       table: []
     }
 
-    handler.handleCommunications(peerSocket, myName /*client name*/, clientDHTtable);
+    singleton.setDHTtable(clientDHTtable);
+
+    handler.handleCommunications(peerSocket, myName /*client name*/);
   });
 
   // starting the image socket server
@@ -125,12 +127,16 @@ if (process.argv.length > 2) {
     table: []
   }
 
+  singleton.setDHTtable(serverDHTtable);
+
   KADServerSocket.on("connection", function (sock) {
+    console.log("AH");
     // received connection request
-    handler.handleClientJoining(sock, serverDHTtable);
+    handler.handleClientJoining(sock);
   });
 
   imageServerSocket.on("connection", function (sock) {
+    console.log("AH2");
     // received connection request
     handler.handleImageRequest(sock);
   });

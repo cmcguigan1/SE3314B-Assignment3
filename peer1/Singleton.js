@@ -6,6 +6,7 @@ let imageSocketNumber;
 let peerSocketNumber;
 let IP;
 let senderName;
+let DHTtable;
 
 function timerRun() {
     timer ++;
@@ -103,7 +104,10 @@ module.exports = {
     },
     setSenderName: function (sender){
         senderName = sender;
-    },  
+    },
+    setDHTtable: function(table){
+        DHTtable = table;
+    },
 
     getImageSocket: function (){
         return imageSocketNumber;
@@ -116,5 +120,8 @@ module.exports = {
     },
     getSenderName: function (){
         return senderName;
-    },  
+    },
+    getDHTtable: function (){
+        return DHTtable;
+    },
 };
