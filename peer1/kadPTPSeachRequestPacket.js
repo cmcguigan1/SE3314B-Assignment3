@@ -30,7 +30,7 @@ module.exports = {
       storeBitPacket(originatingPeerBuff, Number(splitIP[i]), i * 8, 8);
     }
     // storing the port number
-    storeBitPacket(originatingPeerBuff, Number(singleton.getPortNumber()), 32, 16);
+    storeBitPacket(originatingPeerBuff, Number(originatingPeerImagePort), 32, 16);
  
     senderNameBuffer = Buffer.concat([senderNameBuff, originatingPeerBuff]);
 

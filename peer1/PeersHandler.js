@@ -21,7 +21,6 @@ let localKeysList = [];
 
 module.exports = {
   handleClientJoining: function (sock) {
-    console.log("hi");
     // populate the list of local keys array with the IDs of images in this folder
     populateLocalKeysList();
     // accept anyways in this assignment
@@ -54,6 +53,7 @@ module.exports = {
 
 function handleClient(sock) {
   let kadPacket = null;
+  let KADSearchPktReceived = null;
   let joiningPeerAddress = sock.remoteAddress + ":" + sock.remotePort;
 
   // initialize client DHT table
@@ -67,7 +67,15 @@ function handleClient(sock) {
 
   // Triggered only when the client is sending kadPTP message
   sock.on('data', (message) => {
-    kadPacket = parseMessage(message);
+    msgType = parseBitPacket(message, 4, 8);
+    if (msgType != 3) {
+      kadPacket = parseJoinRequestMessage(message);
+    }
+    // Message received is a KAD Search Packet 
+    else {
+      KADSearchPktReceived = message;
+      kadPacket = parseKADSeachRequestMessage(message);
+    }
   });
 
   sock.on('end', () => {
@@ -103,6 +111,67 @@ function handleClient(sock) {
         // Now update the DHT table
         updateDHTtable(kadPacket.peersList);
       }
+      // KAD Search Packet
+      else if (kadPacket.msgType == 3) {
+        let found = false;
+        // check in this peer's list of keys for the image
+        localKeysList.forEach((key) => {
+          if (key.imageName == kadPacket.imageFullName) {
+            found = true;
+          }
+        });
+
+        let imageData = fs.readFileSync(kadPacket.imageFullName);
+
+        // if the image was found in this peer, form an ITPResponse packet with the image
+        // make the message type of 4 for "Found to Originator" and send to originating peer specified in KAD search packet
+        if (found) {
+          ITPpacket.init(
+            version,
+            4, // response type of "Found to Originator"
+            singleton.getSequenceNumber(), // sequence number
+            singleton.getTimestamp(), // timestamp
+            imageData, // image data
+          );
+
+          // open a socket connection to the originating peer's port and ip specified in the packet and send the image
+          let originatingPeerSock = new net.Socket;
+          originatingPeerSock.connect({
+            port: kadPacket.originatingPort,
+            host: kadPacket.originatingIP,
+            localPort: singleton.getPeerSocket()
+          },
+            () => {
+              originatingPeerSock.write(ITPpacket.getBytePacket());
+              setTimeout(() => {
+                originatingPeerSock.end();
+                originatingPeerSock.destroy();
+              }, 500)
+            }
+          );
+          sock.end();
+        }
+        // search the KAD peer network 
+        else {
+          let closestPeer = sendSearchToClosestPeer(singleton.getKeyID(kadPacket.imageFullName), singleton.getDHTtable());
+          let sendToPeerSock = new net.Socket;
+          sendToPeerSock.connect({
+            port: closestPeer.peerPort,
+            host: closestPeer.peerIP,
+            localPort: singleton.getPeerSocket()
+          },
+            () => {
+              // send the closest peer the original KAD Search packet we received
+              sendToPeerSock.write(KADSearchPktReceived);
+              setTimeout(() => {
+                sendToPeerSock.end();
+                sendToPeerSock.destroy();
+              }, 500)
+            }
+          );
+        }
+
+      }
     } else {
       // This was a bootstrap request
       console.log("Connected from peer " + joiningPeerAddress + "\n");
@@ -124,7 +193,7 @@ function communicate(clientSocket, clientName) {
   let senderPeerID = singleton.getPeerID(clientSocket.remoteAddress, clientSocket.remotePort)
 
   clientSocket.on('data', (message) => {
-    let kadPacket = parseMessage(message);
+    let kadPacket = parseJoinRequestMessage(message);
 
     let senderPeerName = kadPacket.senderName;
     let senderPeer = {
@@ -290,7 +359,7 @@ function handleImageRequests(data, sock) {
       port: closestPeer.peerPort,
       host: closestPeer.peerIP,
       localPort: singleton.getPeerSocket()
-      },
+    },
       () => {
         sendToPeerSock.write(KADSeachPacket.getPacket());
         setTimeout(() => {
@@ -326,7 +395,7 @@ function updateDHTtable(list) {
 
 }
 
-function parseMessage(message) {
+function parseJoinRequestMessage(message) {
   let kadPacket = {}
   peersList = [];
   let bitMarker = 0;
@@ -555,4 +624,47 @@ function sendSearchToClosestPeer(keyID, DHTtable) {
 
   // if no peer is found then return null
   return null;
+}
+
+function parseKADSeachRequestMessage(message) {
+  let kadPacket = {}
+  peersList = [];
+  let bitMarker = 0;
+  kadPacket.version = parseBitPacket(message, 0, 4);
+  bitMarker += 4;
+  kadPacket.msgType = parseBitPacket(message, 4, 8);
+  bitMarker += 16;
+  let SenderNameSize = parseBitPacket(message, 20, 12);
+  bitMarker += 12;
+  kadPacket.senderName = bytes2string(message.slice(4, SenderNameSize + 4));
+  bitMarker += SenderNameSize * 8;
+
+  let firstOctet = parseBitPacket(message, bitMarker, 8);
+  bitMarker += 8;
+  let secondOctet = parseBitPacket(message, bitMarker, 8);
+  bitMarker += 8;
+  let thirdOctet = parseBitPacket(message, bitMarker, 8);
+  bitMarker += 8;
+  let forthOctet = parseBitPacket(message, bitMarker, 8);
+  bitMarker += 8;
+  kadPacket.originatingPort = parseBitPacket(message, bitMarker, 16);
+  bitMarker += 16;
+  kadPacket.originatingIP = firstOctet + "." + secondOctet + "." + thirdOctet + "." + forthOctet;
+
+  kadPacket.imageType = parseBitPacket(message, bitMarker, 4);
+  bitMarker += 4;
+  let ImageSize = parseBitPacket(message, bitMarker, 28);
+  bitMarker += 28;
+  kadPacket.imageName = bytes2string(message.slice(bitMarker, ImageSize));
+  let imageExtension = {
+    1: "BMP",
+    2: "JPEG",
+    3: "GIF",
+    4: "PNG",
+    5: "TIFF",
+    15: "RAW",
+  };
+  kadPacket.imageFullName = `${imageName}.${imageExtension[kadPacket.imageType]}`;
+
+  return kadPacket;
 }
