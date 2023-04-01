@@ -20,7 +20,7 @@ let HOST = "";
 // get a random port > 3000 and < 5000 for the image socket
 let imageSocketPort = singleton.getImageSocketPort();
 // fixed value for the peer socket
-let peerSocketPort = 2001;
+let peerSocketPort = 2077;
 singleton.setPeerSocket(peerSocketPort);
 
 // get the loaclhost ip address

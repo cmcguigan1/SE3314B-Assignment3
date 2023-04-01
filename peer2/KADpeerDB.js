@@ -5,6 +5,9 @@ let os = require("os");
 
 singleton.init();
 
+// populate the list of local keys array with the IDs of images in this folder
+handler.populateLocalKeysList();
+
 
 // get current folder name
 let path = __dirname.split("\\");
@@ -136,6 +139,7 @@ if (process.argv.length > 2) {
   });
 
   imageServerSocket.on("connection", function (sock) {
+    console.log("AH2");
     // received connection request
     handler.handleImageRequest(sock);
   });
