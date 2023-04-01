@@ -49,7 +49,6 @@ module.exports = {
   },
   // function to get the name of a file in the folder 
   populateLocalKeysList: function () {
-    console.log("here");
     const directoryPath = path.join(__dirname);
 
     let imagesInDirectory = [];
@@ -69,15 +68,12 @@ module.exports = {
       });
 
       imagesInDirectory.forEach((fileName) => {
-        console.log(fileName);
         let temp = {
           imageName: fileName,
           imageID: singleton.getKeyID(fileName)
         };
-        console.log(temp);
         localKeysList.push(temp);
       })
-      console.log(localKeysList);
     });
   }
 };
@@ -344,7 +340,7 @@ function handleImageRequests(data, sock) {
     let imageNameSize = parseBitPacket(data, 68, 28);
     let imageName = bytesToString(data.slice(12, 13 + imageNameSize));
 
-    let imageFullName = imageName + "." + imageTypeName;
+    let imageFullName = imageName + "." + imageTypeName.toLowerCase();
 
     console.log(
       "\n" +
@@ -373,8 +369,6 @@ function handleImageRequests(data, sock) {
 
     let imageData = fs.readFileSync(imageFullName);
 
-    console.log(found);
-
     // if the image was found in this peer, form an ITPResponse packet with the image
     if (found) {
       ITPpacket.init(
@@ -384,10 +378,12 @@ function handleImageRequests(data, sock) {
         singleton.getTimestamp(), // timestamp
         imageData, // image data
       );
-
       // open a socket connection to the port and ip specified in the packet and send the image
       sock.write(ITPpacket.getBytePacket());
-      sock.end();
+      setTimeout(() => {
+        sock.end();
+        sock.destroy();
+      }, 500);
     }
     // search the KAD peer network 
     else {
@@ -419,6 +415,11 @@ function handleImageRequests(data, sock) {
       );
     }
   }
+}
+
+function handleClientLeaving(sock) {
+  console.log(nickNames[sock.id] + " closed the connection");
+  
 }
 
 function updateDHTtable(list) {
