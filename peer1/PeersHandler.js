@@ -664,7 +664,6 @@ function parseKADSeachRequestMessage(message) {
   let SenderNameSize = parseBitPacket(message, 20, 12);
   bitMarker += 12;
   kadPacket.senderName = bytes2string(message.slice(4, SenderNameSize + 4));
-  console.log(kadPacket.senderName);
   bitMarker += 32;
 
   let firstOctet = parseBitPacket(message, bitMarker, 8);
@@ -680,12 +679,9 @@ function parseKADSeachRequestMessage(message) {
   kadPacket.originatingIP = firstOctet + "." + secondOctet + "." + thirdOctet + "." + forthOctet;
 
   kadPacket.imageType = parseBitPacket(message, bitMarker, 4);
-  console.log(kadPacket.imageType);
   bitMarker += 4;
   let ImageSize = parseBitPacket(message, bitMarker, 28);
   bitMarker += 28;
-  console.log(ImageSize);
-  console.log(bitMarker/8);
   kadPacket.imageName = bytes2string(message.slice((bitMarker/8), message.length));
   let imageExtension = {
     1: "BMP",
@@ -698,14 +694,6 @@ function parseKADSeachRequestMessage(message) {
   kadPacket.imageFullName = `${kadPacket.imageName}.${imageExtension[kadPacket.imageType].toLowerCase()}`;
 
   return kadPacket;
-}
-
-function bytes2number(array) {
-  var result = "";
-  for (var i = 0; i < array.length; ++i) {
-    result ^= array[array.length - i - 1] << (8 * i);
-  }
-  return result;
 }
 
 // Store integer value into the packet bit stream

@@ -398,9 +398,9 @@ function handleImageRequests(data, sock) {
         imageType,
         imageName
       );
-      
+
       let closestPeer = sendSearchToClosestPeer(singleton.getKeyID(imageFullName), singleton.getDHTtable());
-      
+
       let sendToPeerSock = new net.Socket;
       sendToPeerSock.connect({
         port: closestPeer.peerPort,
@@ -421,7 +421,7 @@ function handleImageRequests(data, sock) {
 
 function handleClientLeaving(sock) {
   console.log(nickNames[sock.id] + " closed the connection");
-  
+
 }
 
 function updateDHTtable(list) {
@@ -633,8 +633,8 @@ function sendSearchToClosestPeer(keyID, DHTtable) {
     if (thisPeerIDBinary[i] != keyIDBinary[i])
       break;
   }
-  
-  for(let peer of DHTtable.table){
+
+  for (let peer of DHTtable.table) {
     // return the peer with the same longest common prefix as the keyID with this peer
     if (peer.prefix == i) {
       return peer.node;
@@ -644,7 +644,6 @@ function sendSearchToClosestPeer(keyID, DHTtable) {
 
 function parseKADSeachRequestMessage(message) {
   let kadPacket = {}
-  peersList = [];
   let bitMarker = 0;
   kadPacket.version = parseBitPacket(message, 0, 4);
   bitMarker += 4;
@@ -653,7 +652,7 @@ function parseKADSeachRequestMessage(message) {
   let SenderNameSize = parseBitPacket(message, 20, 12);
   bitMarker += 12;
   kadPacket.senderName = bytes2string(message.slice(4, SenderNameSize + 4));
-  bitMarker += SenderNameSize * 8;
+  bitMarker += 32;
 
   let firstOctet = parseBitPacket(message, bitMarker, 8);
   bitMarker += 8;
@@ -671,7 +670,7 @@ function parseKADSeachRequestMessage(message) {
   bitMarker += 4;
   let ImageSize = parseBitPacket(message, bitMarker, 28);
   bitMarker += 28;
-  kadPacket.imageName = bytes2string(message.slice(bitMarker, ImageSize));
+  kadPacket.imageName = bytes2string(message.slice((bitMarker / 8), message.length));
   let imageExtension = {
     1: "BMP",
     2: "JPEG",
@@ -680,7 +679,7 @@ function parseKADSeachRequestMessage(message) {
     5: "TIFF",
     15: "RAW",
   };
-  kadPacket.imageFullName = `${kadPacket.imageName}.${imageExtension[kadPacket.imageType]}`;
+  kadPacket.imageFullName = `${kadPacket.imageName}.${imageExtension[kadPacket.imageType].toLowerCase()}`;
 
   return kadPacket;
 }
