@@ -151,7 +151,6 @@ function handleClient(sock) {
         let found = false;
         // check in this peer's list of keys for the image
         localKeysList.forEach((key) => {
-          console.log(key);
           if (key.imageName == kadPacket.imageFullName) {
             found = true;
           }
@@ -163,51 +162,55 @@ function handleClient(sock) {
         // make the message type of 4 for "Found to Originator" and send to originating peer specified in KAD search packet
         if (found) {
           // read the image file data
-          let imageData = fs.readFileSync(imageFullName);
+          let imageData = fs.readFileSync(kadPacket.imageFullName);
 
           ITPpacket.init(
-            version,
+            kadPacket.version,
             4, // response type of "Found to Originator"
             singleton.getSequenceNumber(), // sequence number
             singleton.getTimestamp(), // timestamp
             imageData, // image data
           );
 
-          // open a socket connection to the originating peer's port and ip specified in the packet and send the image
-          let originatingPeerSock = new net.Socket;
-          originatingPeerSock.connect({
-            port: kadPacket.originatingPort,
-            host: kadPacket.originatingIP,
-            localPort: singleton.getPeerSocket()
-          },
-            () => {
-              originatingPeerSock.write(ITPpacket.getBytePacket());
-              setTimeout(() => {
-                originatingPeerSock.end();
-                originatingPeerSock.destroy();
-              }, 500)
-            }
-          );
-          sock.end();
+          setTimeout(() => {
+            // open a socket connection to the originating peer's port and ip specified in the packet and send the image
+            let originatingPeerSock = new net.Socket;
+            originatingPeerSock.connect({
+              port: kadPacket.originatingPort,
+              host: kadPacket.originatingIP,
+              localPort: singleton.getPeerSocket()
+            },
+              () => {
+                originatingPeerSock.write(ITPpacket.getBytePacket());
+                setTimeout(() => {
+                  originatingPeerSock.end();
+                  originatingPeerSock.destroy();
+                }, 500)
+              }
+            );
+          }, 500);
         }
         // search the KAD peer network 
         else {
           let closestPeer = sendSearchToClosestPeer(singleton.getKeyID(kadPacket.imageFullName), singleton.getDHTtable());
-          let sendToPeerSock = new net.Socket;
-          sendToPeerSock.connect({
-            port: closestPeer.peerPort,
-            host: closestPeer.peerIP,
-            localPort: singleton.getPeerSocket()
-          },
-            () => {
-              // send the closest peer the original KAD Search packet we received
-              sendToPeerSock.write(KADSearchPktReceived);
-              setTimeout(() => {
-                sendToPeerSock.end();
-                sendToPeerSock.destroy();
-              }, 500)
-            }
-          );
+          
+          setTimeout(() => {
+            let sendToPeerSock = new net.Socket;
+            sendToPeerSock.connect({
+              port: closestPeer.peerPort,
+              host: closestPeer.peerIP,
+              localPort: singleton.getPeerSocket()
+            },
+              () => {
+                // send the closest peer the original KAD Search packet we received
+                sendToPeerSock.write(KADSearchPktReceived);
+                setTimeout(() => {
+                  sendToPeerSock.end();
+                  sendToPeerSock.destroy();
+                }, 500)
+              }
+            );
+          }, 500);
         }
 
       }
@@ -324,7 +327,10 @@ function handleImageRequests(data, sock) {
 
     // write back to the client that requested the image
     clientRequestingImage.write(data);
-    clientRequestingImage.end();
+    setTimeout(() => {
+      clientRequestingImage.end();
+      clientRequestingImage.destroy();
+    }, 500);
   }
   // Otherwise its an ITPRequest packet for an image
   else {

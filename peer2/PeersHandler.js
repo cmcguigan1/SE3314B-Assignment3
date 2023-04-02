@@ -31,6 +31,7 @@ module.exports = {
     communicate(clientSocket, clientName);
   },
   handleImageRequest: function (sock) {
+    console.log("in image handler");
     assignClientName(sock, nickNames);
     console.log(
       "\n" +
@@ -301,10 +302,13 @@ function communicate(clientSocket, clientName) {
 }
 
 function handleImageRequests(data, sock) {
+  console.log("in image handler function");
   // check to see if its an ITPRequest or an ITPResponse packet
   let potentialResponseType = parseBitPacket(data, 4, 8);
+  console.log(potentialResponseType);
   // since the ITPRequest bits 4 to 12 would be filled with 0s (Reserved), if the value != 0, its a Response packet
   if (potentialResponseType != 0) {
+    console.log("in if");
     // Edit the response type, timestamp and sequence number fields of the ITPResponse packet received 
     storeBitPacket(data, 1, 4, 8); // Changing the reponse type from "Found to Originator" to "Found to Client"
     storeBitPacket(data, singleton.getSequenceNumber(), 12, 20);
@@ -312,7 +316,10 @@ function handleImageRequests(data, sock) {
 
     // write back to the client that requested the image
     clientRequestingImage.write(data);
-    clientRequestingImage.end();
+    setTimeout(() => {
+      clientRequestingImage.end();
+      clientRequestingImage.destroy();
+    }, 500);
   }
   // Otherwise its an ITPRequest packet for an image
   else {
@@ -421,7 +428,6 @@ function handleImageRequests(data, sock) {
 
 function handleClientLeaving(sock) {
   console.log(nickNames[sock.id] + " closed the connection");
-
 }
 
 function updateDHTtable(list) {
