@@ -3,7 +3,7 @@ let version, msgType, senderNameLength, senderName, originatingPeerIP, originati
 let headerBuffer, senderNameBuffer, payloadBuffer;
 
 module.exports = {
-  init: function (ver, messageType, imageExt, imageData) {
+  init: function (ver, messageType, imageExt, imageName) {
     headerBuffer = new Buffer.alloc(4);
     version = ver;
     msgType = messageType;
@@ -11,6 +11,7 @@ module.exports = {
     senderNameLength = senderName.length;
     originatingPeerIP = singleton.getIP();
     originatingPeerImagePort = singleton.getImageSocket();
+    imageData = stringToBytes(imageName);
 
     // Populating the fixed length buffer for the header
     storeBitPacket(headerBuffer, Number(version), 0, 4);

@@ -367,10 +367,11 @@ function handleImageRequests(data, sock) {
       }
     });
 
-    let imageData = fs.readFileSync(imageFullName);
-
     // if the image was found in this peer, form an ITPResponse packet with the image
     if (found) {
+      // read the image file data
+      let imageData = fs.readFileSync(imageFullName);
+
       ITPpacket.init(
         version,
         1, // response type of "Found to Client"
@@ -395,10 +396,11 @@ function handleImageRequests(data, sock) {
         version,
         3,
         imageType,
-        imageData
+        imageName
       );
+      
       let closestPeer = sendSearchToClosestPeer(singleton.getKeyID(imageFullName), singleton.getDHTtable());
-      console.log(closestPeer);
+      
       let sendToPeerSock = new net.Socket;
       sendToPeerSock.connect({
         port: closestPeer.peerPort,
@@ -631,16 +633,13 @@ function sendSearchToClosestPeer(keyID, DHTtable) {
     if (thisPeerIDBinary[i] != keyIDBinary[i])
       break;
   }
-  console.log(DHTtable);
-  DHTtable.table.forEach((peer) => {
+  
+  for(let peer of DHTtable.table){
     // return the peer with the same longest common prefix as the keyID with this peer
     if (peer.prefix == i) {
-      return peer;
+      return peer.node;
     }
-  });
-
-  // if no peer is found then return null
-  return null;
+  };
 }
 
 function parseKADSeachRequestMessage(message) {
