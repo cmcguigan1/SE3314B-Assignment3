@@ -79,6 +79,7 @@ module.exports = {
 };
 
 function handleClient(sock) {
+  console.log("in handle client");
   let kadPacket = null;
   let KADSearchPktReceived = null;
   let joiningPeerAddress = sock.remoteAddress + ":" + sock.remotePort;
@@ -95,17 +96,21 @@ function handleClient(sock) {
   // Triggered only when the client is sending kadPTP message
   sock.on('data', (message) => {
     msgType = parseBitPacket(message, 4, 8);
+    console.log(msgType);
     if (msgType != 3) {
+      console.log("inside if");
       kadPacket = parseJoinRequestMessage(message);
     }
     // Message received is a KAD Search Packet 
     else {
+      console.log("inside else");
       KADSearchPktReceived = message;
       kadPacket = parseKADSeachRequestMessage(message);
     }
   });
 
   sock.on('end', () => {
+    console.log("in end");
     // client edded the connection
     if (kadPacket) {
       // Here, the msgType cannot be 1. It can be 2 or greater
@@ -140,13 +145,19 @@ function handleClient(sock) {
       }
       // KAD Search Packet
       else if (kadPacket.msgType == 3) {
+        console.log("in else if");
+        console.log(kadPacket);
+        console.log(kadPacket.imageFullName);
         let found = false;
         // check in this peer's list of keys for the image
         localKeysList.forEach((key) => {
+          console.log(key);
           if (key.imageName == kadPacket.imageFullName) {
             found = true;
           }
         });
+
+        console.log(found);
 
         // if the image was found in this peer, form an ITPResponse packet with the image
         // make the message type of 4 for "Found to Originator" and send to originating peer specified in KAD search packet
@@ -645,7 +656,6 @@ function sendSearchToClosestPeer(keyID, DHTtable) {
 
 function parseKADSeachRequestMessage(message) {
   let kadPacket = {}
-  peersList = [];
   let bitMarker = 0;
   kadPacket.version = parseBitPacket(message, 0, 4);
   bitMarker += 4;
@@ -654,7 +664,8 @@ function parseKADSeachRequestMessage(message) {
   let SenderNameSize = parseBitPacket(message, 20, 12);
   bitMarker += 12;
   kadPacket.senderName = bytes2string(message.slice(4, SenderNameSize + 4));
-  bitMarker += SenderNameSize * 8;
+  console.log(kadPacket.senderName);
+  bitMarker += 32;
 
   let firstOctet = parseBitPacket(message, bitMarker, 8);
   bitMarker += 8;
@@ -669,10 +680,13 @@ function parseKADSeachRequestMessage(message) {
   kadPacket.originatingIP = firstOctet + "." + secondOctet + "." + thirdOctet + "." + forthOctet;
 
   kadPacket.imageType = parseBitPacket(message, bitMarker, 4);
+  console.log(kadPacket.imageType);
   bitMarker += 4;
   let ImageSize = parseBitPacket(message, bitMarker, 28);
   bitMarker += 28;
-  kadPacket.imageName = bytes2string(message.slice(bitMarker, ImageSize));
+  console.log(ImageSize);
+  console.log(bitMarker/8);
+  kadPacket.imageName = bytes2string(message.slice((bitMarker/8), message.length));
   let imageExtension = {
     1: "BMP",
     2: "JPEG",
@@ -681,11 +695,18 @@ function parseKADSeachRequestMessage(message) {
     5: "TIFF",
     15: "RAW",
   };
-  kadPacket.imageFullName = `${kadPacket.imageName}.${imageExtension[kadPacket.imageType]}`;
+  kadPacket.imageFullName = `${kadPacket.imageName}.${imageExtension[kadPacket.imageType].toLowerCase()}`;
 
   return kadPacket;
 }
 
+function bytes2number(array) {
+  var result = "";
+  for (var i = 0; i < array.length; ++i) {
+    result ^= array[array.length - i - 1] << (8 * i);
+  }
+  return result;
+}
 
 // Store integer value into the packet bit stream
 function storeBitPacket(packet, value, offset, length) {

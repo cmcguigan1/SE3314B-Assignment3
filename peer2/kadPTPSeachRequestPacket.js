@@ -1,5 +1,5 @@
 const singleton = require('./Singleton');
-let version, msgType, senderNameLength, senderName, originatingPeerIP, originatingPeerImagePort, imageExt, imageData;
+let version, msgType, senderNameLength, senderName, originatingPeerIP, originatingPeerImagePort, imageType, imageData;
 let headerBuffer, senderNameBuffer, payloadBuffer;
 
 module.exports = {
@@ -11,6 +11,7 @@ module.exports = {
     senderNameLength = senderName.length;
     originatingPeerIP = singleton.getIP();
     originatingPeerImagePort = singleton.getImageSocket();
+    imageType = imageExt;
     imageData = stringToBytes(imageName);
 
     // Populating the fixed length buffer for the header
@@ -36,16 +37,16 @@ module.exports = {
     senderNameBuffer = Buffer.concat([senderNameBuff, originatingPeerBuff]);
 
     let payloadHeaderBuff = new Buffer.alloc(4);
-    storeBitPacket(payloadHeaderBuff, imageExt, 0, 4);
+    storeBitPacket(payloadHeaderBuff, imageType, 0, 4);
     storeBitPacket(payloadHeaderBuff, imageData.length, 4, 28);
 
-    let payloadBuff = new Buffer.alloc(imageData.length + 4);
+    let payloadBuff = new Buffer.alloc(imageData.length);
     // Image data    
     for (j = 0; j < imageData.length; j++) {
       payloadBuff[j] = imageData[j];
     }
 
-    payloadBuffer = Buffer.concat([payloadBuff, payloadBuff]);
+    payloadBuffer = Buffer.concat([payloadHeaderBuff, payloadBuff]);
   },
   //--------------------------
   //getBytePacket: returns the entire packet in bytes

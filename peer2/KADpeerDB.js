@@ -19,6 +19,7 @@ let HOST = "";
 
 // get a random port > 3000 and < 5000 for the image socket
 let imageSocketPort = /*singleton.getImageSocketPort();*/ 3000;
+singleton.setImageSocket(3000);
 // fixed value for the peer socket
 let peerSocketPort = 2055;
 singleton.setPeerSocket(peerSocketPort);
