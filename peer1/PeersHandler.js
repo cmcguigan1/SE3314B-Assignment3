@@ -148,11 +148,12 @@ function handleClient(sock) {
           }
         });
 
-        let imageData = fs.readFileSync(kadPacket.imageFullName);
-
         // if the image was found in this peer, form an ITPResponse packet with the image
         // make the message type of 4 for "Found to Originator" and send to originating peer specified in KAD search packet
         if (found) {
+          // read the image file data
+          let imageData = fs.readFileSync(imageFullName);
+
           ITPpacket.init(
             version,
             4, // response type of "Found to Originator"
@@ -401,7 +402,6 @@ function handleImageRequests(data, sock) {
       
       let closestPeer = sendSearchToClosestPeer(singleton.getKeyID(imageFullName), singleton.getDHTtable());
       
-      console.log(closestPeer);
       let sendToPeerSock = new net.Socket;
       sendToPeerSock.connect({
         port: closestPeer.peerPort,
@@ -681,7 +681,7 @@ function parseKADSeachRequestMessage(message) {
     5: "TIFF",
     15: "RAW",
   };
-  kadPacket.imageFullName = `${imageName}.${imageExtension[kadPacket.imageType]}`;
+  kadPacket.imageFullName = `${kadPacket.imageName}.${imageExtension[kadPacket.imageType]}`;
 
   return kadPacket;
 }

@@ -680,7 +680,7 @@ function parseKADSeachRequestMessage(message) {
     5: "TIFF",
     15: "RAW",
   };
-  kadPacket.imageFullName = `${imageName}.${imageExtension[kadPacket.imageType]}`;
+  kadPacket.imageFullName = `${kadPacket.imageName}.${imageExtension[kadPacket.imageType]}`;
 
   return kadPacket;
 }
