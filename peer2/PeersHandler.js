@@ -148,11 +148,11 @@ function handleClient(sock) {
           }
         });
 
-        let imageData = fs.readFileSync(kadPacket.imageFullName);
-
         // if the image was found in this peer, form an ITPResponse packet with the image
         // make the message type of 4 for "Found to Originator" and send to originating peer specified in KAD search packet
         if (found) {
+          let imageData = fs.readFileSync(kadPacket.imageFullName);
+
           ITPpacket.init(
             version,
             4, // response type of "Found to Originator"
