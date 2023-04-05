@@ -96,8 +96,22 @@ module.exports = {
     setImageSocket: function (port){
         imageSocketNumber = port;
     },
-    setPeerSocket: function (port){
-        peerSocketNumber = port;
+    setPeerSocket: function (senderName){
+        if(senderName == "peer1"){
+            peerSocketNumber = 2001;
+        }
+        else if(senderName == "peer2"){
+            peerSocketNumber = 2055;
+        }
+        else if(senderName == "peer3"){
+            peerSocketNumber = 2077;
+        }
+        else if(senderName == "peer4"){
+            peerSocketNumber = 2044;
+        }
+        else{
+            peerSocketNumber = 2005;
+        }
     },
     setIP: function (ip){
         IP = ip;

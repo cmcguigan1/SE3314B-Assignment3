@@ -21,8 +21,8 @@ let HOST = "";
 let imageSocketPort = /*singleton.getImageSocketPort();*/ 3000;
 singleton.setImageSocket(3000);
 // fixed value for the peer socket
-let peerSocketPort = 2055;
-singleton.setPeerSocket(peerSocketPort);
+singleton.setPeerSocket(myName);
+peerSocketPort = singleton.getPeerSocket();
 
 // get the loaclhost ip address
 Object.keys(ifaces).forEach(function (ifname) {
