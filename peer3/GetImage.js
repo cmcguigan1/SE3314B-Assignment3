@@ -71,6 +71,7 @@ client.on("end", () => {
   // open image
   (async () => {
     // Opens the image in the default image viewer and waits for the opened app to finish.
+     
       //await open(imageName, { wait: true });
       process.exit(1);
      

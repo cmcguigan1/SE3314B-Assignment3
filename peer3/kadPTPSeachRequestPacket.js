@@ -4,13 +4,16 @@ let headerBuffer, senderNameBuffer, payloadBuffer;
 
 module.exports = {
   init: function (ver, messageType, imageExt, imageName) {
+    // buffer for the first 4 bytes (version number, message type, reserved, and sender name size)
     headerBuffer = new Buffer.alloc(4);
+
+    // saving the parameters to variables
     version = ver;
     msgType = messageType;
     senderName = stringToBytes(singleton.getSenderName());
     senderNameLength = senderName.length;
     originatingPeerIP = singleton.getIP();
-    originatingPeerImagePort = singleton.getImageSocket();
+    originatingPeerImagePort = singleton.getImageSocket(); // getting the image socket of this peer
     imageType = imageExt;
     imageData = stringToBytes(imageName);
 
@@ -31,11 +34,13 @@ module.exports = {
     for (let i = 0; i < splitIP.length; i++) {
       storeBitPacket(originatingPeerBuff, Number(splitIP[i]), i * 8, 8);
     }
-    // storing the port number
+    // storing the image port number
     storeBitPacket(originatingPeerBuff, Number(originatingPeerImagePort), 32, 16);
  
+    // storing the sender name, originating IP and orginating port number into the sender name buffer
     senderNameBuffer = Buffer.concat([senderNameBuff, originatingPeerBuff]);
 
+    // Payload
     let payloadHeaderBuff = new Buffer.alloc(4);
     storeBitPacket(payloadHeaderBuff, imageType, 0, 4);
     storeBitPacket(payloadHeaderBuff, imageData.length, 4, 28);
@@ -46,12 +51,14 @@ module.exports = {
       payloadBuff[j] = imageData[j];
     }
 
+    // payload buffer for the image and its data
     payloadBuffer = Buffer.concat([payloadHeaderBuff, payloadBuff]);
   },
   //--------------------------
   //getBytePacket: returns the entire packet in bytes
   //--------------------------
   getBytePacket: function () {
+    // concatenate the 3 buffers and return one combined buffer object
     let combinedBufferArray;
     combinedBufferArray = [headerBuffer, senderNameBuffer, payloadBuffer];
     return Buffer.concat(combinedBufferArray);

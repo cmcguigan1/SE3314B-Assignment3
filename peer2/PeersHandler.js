@@ -176,7 +176,9 @@ function handleClient(sock) {
               }, 500)
             }
           );
+
           sock.end();
+          sock.destroy();
         }
         // search the KAD peer network 
         else {
@@ -196,6 +198,9 @@ function handleClient(sock) {
               }, 500)
             }
           );
+
+          sock.end();
+          sock.destroy();
         }
 
       }

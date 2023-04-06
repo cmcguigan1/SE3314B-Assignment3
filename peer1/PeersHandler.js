@@ -178,14 +178,19 @@ function handleClient(sock) {
               localPort: singleton.getPeerSocket()
             },
               () => {
+                // writing the ITPResponse packet with requested image to originating peer 
                 originatingPeerSock.write(ITPpacket.getBytePacket());
                 setTimeout(() => {
+                  // closing the socket after a timeout period
                   originatingPeerSock.end();
                   originatingPeerSock.destroy();
                 }, 500)
               }
             );
           }, 500);
+
+          sock.end();
+          sock.destroy();
         }
         // search the KAD peer network 
         else {
@@ -210,8 +215,10 @@ function handleClient(sock) {
               }
             );
           }, 500);
-        }
 
+          sock.end();
+          sock.destroy();
+        }
       }
     } 
     // message type is not 2 (Join request) or 3 (KAD search packet)

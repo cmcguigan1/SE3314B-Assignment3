@@ -21,7 +21,7 @@ let HOST = "";
 let imageSocketPort = singleton.getImageSocketPort();
 // fixed value for the peer socket
 singleton.setPeerSocket(myName);
-peerSocketPort = singleton.getPeerSocket();
+let peerSocketPort = singleton.getPeerSocket();
 
 // get the loaclhost ip address
 Object.keys(ifaces).forEach(function (ifname) {
@@ -84,6 +84,7 @@ if (process.argv.length > 2) {
       table: []
     }
 
+    // set the DHT table in the singleton instance
     singleton.setDHTtable(clientDHTtable);
 
     handler.handleCommunications(peerSocket, myName /*client name*/);
@@ -130,16 +131,15 @@ if (process.argv.length > 2) {
     table: []
   }
 
+  // save the DHT table to the singleton instance
   singleton.setDHTtable(serverDHTtable);
 
   KADServerSocket.on("connection", function (sock) {
-    console.log("AH");
     // received connection request
     handler.handleClientJoining(sock);
   });
 
   imageServerSocket.on("connection", function (sock) {
-    console.log("AH2");
     // received connection request
     handler.handleImageRequest(sock);
   });
